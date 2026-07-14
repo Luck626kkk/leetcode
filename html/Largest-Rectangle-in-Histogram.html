@@ -1,0 +1,736 @@
+<title>單調堆疊視覺化 — Largest Rectangle in Histogram</title>
+<style>
+  :root {
+    --paper: #f3f2ed;
+    --paper-raised: #fbfaf6;
+    --ink: #1f2430;
+    --ink-soft: #5b6472;
+    --ink-faint: #9aa0ac;
+    --line: #d8d5cb;
+    --line-strong: #c2beb1;
+    --accent: #2f6f5e;       /* teal — currently in stack */
+    --accent-soft: #dce8e3;
+    --pop: #c1502e;          /* rust — resolved this step */
+    --pop-soft: #f3ddd2;
+    --current: #b8842a;      /* ochre — scan pointer */
+    --current-soft: #f1e3c4;
+    --shadow: 0 1px 2px rgba(31,36,48,0.06), 0 8px 24px -12px rgba(31,36,48,0.18);
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #14171c;
+    --paper-raised: #1b1f26;
+    --ink: #e8e6df;
+    --ink-soft: #9aa0ac;
+    --ink-faint: #656c78;
+    --line: #2b2f38;
+    --line-strong: #3a3f4a;
+    --accent: #4fa98c;
+    --accent-soft: #1c2f2a;
+    --pop: #e0825b;
+    --pop-soft: #33231c;
+    --current: #e2b45c;
+    --current-soft: #332918;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14171c;
+      --paper-raised: #1b1f26;
+      --ink: #e8e6df;
+      --ink-soft: #9aa0ac;
+      --ink-faint: #656c78;
+      --line: #2b2f38;
+      --line-strong: #3a3f4a;
+      --accent: #4fa98c;
+      --accent-soft: #1c2f2a;
+      --pop: #e0825b;
+      --pop-soft: #33231c;
+      --current: #e2b45c;
+      --current-soft: #332918;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SF Mono", "Menlo", "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+
+  header.hero {
+    margin-bottom: 40px;
+  }
+
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+  }
+
+  h1 {
+    font-size: clamp(26px, 4vw, 34px);
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0 0 14px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  .lede {
+    color: var(--ink-soft);
+    font-size: 16.5px;
+    line-height: 1.65;
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  .lede .mono {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.92em;
+    color: var(--ink);
+  }
+
+  /* ---- player card ---- */
+
+  .player {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .player-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 20px 24px 0;
+  }
+
+  .step-label {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .maxarea {
+    text-align: right;
+  }
+  .maxarea .num {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .maxarea .cap {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .narration {
+    padding: 10px 24px 4px;
+    font-size: 16px;
+    line-height: 1.6;
+    min-height: 52px;
+  }
+  .narration .mono {
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 5px;
+  }
+
+  .stage {
+    display: flex;
+    gap: 22px;
+    align-items: flex-end;
+    padding: 8px 24px 4px;
+  }
+
+  .histWrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  svg.hist {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+
+  .stackPanel {
+    flex: 0 0 108px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .stackPanel .cap {
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+  .stackWell {
+    width: 100%;
+    min-height: 176px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 6px;
+    gap: 4px;
+  }
+  .stackBlock {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    color: var(--ink);
+    border-radius: 5px;
+    padding: 5px 6px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    animation: settle 260ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stackBlock { animation: none; }
+  }
+  @keyframes settle {
+    from { transform: translateY(-6px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .stackBlock .i { color: var(--ink-faint); }
+  .stackBlock .h { font-weight: 600; }
+
+  /* ---- resolved rectangles ---- */
+
+  .resolved {
+    padding: 14px 24px 4px;
+  }
+  .resolved .cap {
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 10px;
+  }
+  .resolvedGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .resolvedCard {
+    background: var(--pop-soft);
+    border: 1px solid var(--pop);
+    border-radius: 8px;
+    padding: 8px 10px 10px;
+  }
+  .resolvedCard svg {
+    width: 100%;
+    height: 46px;
+    display: block;
+  }
+  .resolvedCard .eq {
+    font-size: 12px;
+    margin-top: 6px;
+    color: var(--ink);
+  }
+  .resolvedCard .eq .mono { font-weight: 600; }
+
+  /* ---- controls ---- */
+
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 24px 22px;
+    border-top: 1px solid var(--line);
+    margin-top: 18px;
+  }
+
+  .btn {
+    font-family: inherit;
+    font-size: 14.5px;
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 9px 16px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn:disabled { opacity: 0.35; cursor: default; }
+
+  .dots {
+    display: flex;
+    gap: 7px;
+  }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--line-strong);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .dot[aria-current="true"] { background: var(--accent); transform: scale(1.3); }
+
+  /* ---- legend + footer ---- */
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 22px 2px 0;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .legend span.swatch {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+  }
+
+  .recap {
+    margin-top: 44px;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+  }
+  .recap h2 {
+    font-size: 19px;
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+  .recap p {
+    color: var(--ink-soft);
+    line-height: 1.7;
+    font-size: 15.5px;
+    max-width: 62ch;
+  }
+  .recap ol {
+    color: var(--ink-soft);
+    line-height: 1.8;
+    font-size: 15.5px;
+    padding-left: 22px;
+  }
+  .recap strong { color: var(--ink); }
+
+  @media (max-width: 560px) {
+    .stage { flex-direction: column; align-items: stretch; }
+    .stackPanel { flex-basis: auto; }
+    .stackWell { min-height: 96px; flex-direction: row; overflow-x: auto; }
+  }
+</style>
+
+<div class="page">
+  <header class="hero">
+    <p class="eyebrow">Largest Rectangle in Histogram · 單調堆疊逐步演示</p>
+    <h1>用一個「只增不減」的堆疊,<br />邊掃描邊把每根柱子的邊界配好</h1>
+    <p class="lede">
+      輸入 <span class="mono">heights = [2,1,5,6,2,3]</span>。由左往右掃描一次,遇到矮柱子就把堆疊裡撐不住的柱子彈出來結算面積 —— 全程只走一遍陣列。
+    </p>
+  </header>
+
+  <div class="player">
+    <div class="player-head">
+      <div class="step-label" id="stepLabel">STEP 1 / 7</div>
+      <div class="maxarea">
+        <div class="num mono" id="maxAreaNum">0</div>
+        <div class="cap">目前最大面積</div>
+      </div>
+    </div>
+
+    <div class="narration" id="narration"></div>
+
+    <div class="stage">
+      <div class="histWrap">
+        <svg class="hist" id="histSvg" viewBox="0 0 420 220" preserveAspectRatio="xMidYMax meet"></svg>
+      </div>
+      <div class="stackPanel">
+        <div class="cap">STACK</div>
+        <div class="stackWell" id="stackWell"></div>
+      </div>
+    </div>
+
+    <div class="resolved" id="resolvedSection" hidden>
+      <p class="cap">這一步結算的矩形</p>
+      <div class="resolvedGrid" id="resolvedGrid"></div>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="prevBtn" aria-label="上一步">← 上一步</button>
+      <div class="dots" id="dots"></div>
+      <button class="btn" id="nextBtn" aria-label="下一步">下一步 →</button>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><span class="swatch" style="background:var(--current-soft);border:1px solid var(--current)"></span>目前掃到的位置</div>
+    <div><span class="swatch" style="background:var(--accent-soft);border:1px solid var(--accent)"></span>還留在堆疊裡</div>
+    <div><span class="swatch" style="background:var(--pop-soft);border:1px solid var(--pop)"></span>這一步被彈出、結算</div>
+    <div><span class="swatch" style="background:transparent;border:1px solid var(--line-strong)"></span>已經結算完的柱子</div>
+  </div>
+
+  <div class="recap">
+    <h2>規則回顧</h2>
+    <ol>
+      <li>堆疊裡永遠存索引,且由底到頂高度<strong>遞增</strong>。</li>
+      <li>掃到新柱子時,只要它比堆疊頂端矮,就把頂端彈出來:<strong>右邊界</strong>是現在的位置,<strong>左邊界</strong>是彈出後堆疊剩下的頂端(早在它被推入時就決定好了)。</li>
+      <li>寬度 = 右邊界 − 左邊界 − 1,面積 = 高度 × 寬度,隨時更新最大值。</li>
+      <li>掃完真實陣列後,補一根高度 0 的哨兵柱子,把堆疊裡剩下的全部強制結算。</li>
+    </ol>
+    <p>這組資料的答案是 <strong class="mono">10</strong> —— 來自柱子 <span class="mono">heights[2]=5</span> 撐開的寬度 2 矩形(中間夾著更高的 6,但兩側都 ≥ 5)。</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var HEIGHTS = [2, 1, 5, 6, 2, 3];
+  var N = HEIGHTS.length;
+  var MAXH = Math.max.apply(null, HEIGHTS);
+
+  function computeSteps(heights) {
+    var n = heights.length;
+    var stack = [];
+    var steps = [];
+    var running = 0;
+    for (var i = 0; i <= n; i++) {
+      var h = i === n ? 0 : heights[i];
+      var pops = [];
+      while (stack.length && heights[stack[stack.length - 1]] >= h) {
+        var top = stack.pop();
+        var height = heights[top];
+        var left = stack.length ? stack[stack.length - 1] : -1;
+        var width = i - left - 1;
+        var area = height * width;
+        if (area > running) running = area;
+        pops.push({ idx: top, height: height, left: left, right: i, width: width, area: area });
+      }
+      stack.push(i);
+      steps.push({
+        i: i,
+        h: h,
+        isSentinel: i === n,
+        pops: pops,
+        stackAfter: stack.slice().filter(function (x) { return x < n; }),
+        runningMax: running
+      });
+    }
+    return steps;
+  }
+
+  var STEPS = computeSteps(HEIGHTS);
+  var cur = 0;
+
+  var svgNS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs) {
+    var e = document.createElementNS(svgNS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // geometry for the main histogram
+  var VB_W = 420, VB_H = 220, BASE_Y = 190, TOP_PAD = 26;
+  var barW = 44, gap = 20;
+  var totalW = N * barW + (N - 1) * gap;
+  var startX = (VB_W - totalW) / 2;
+  var unit = (BASE_Y - TOP_PAD) / MAXH;
+
+  function barX(idx) { return startX + idx * (barW + gap); }
+  function barH(v) { return v * unit; }
+
+  function renderHist(svg, step, opts) {
+    opts = opts || {};
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute("viewBox", "0 0 " + VB_W + " " + VB_H);
+
+    // baseline
+    svg.appendChild(el("line", {
+      x1: startX - 10, x2: startX + totalW + 10, y1: BASE_Y, y2: BASE_Y,
+      stroke: "var(--line-strong)", "stroke-width": 1
+    }));
+
+    var resolvedNowIdx = {};
+    step.pops.forEach(function (p) { resolvedNowIdx[p.idx] = p; });
+    var inStackIdx = {};
+    step.stackAfter.forEach(function (x) { inStackIdx[x] = true; });
+    var pastResolvedIdx = {};
+    for (var s = 0; s <= cur; s++) {
+      STEPS[s].pops.forEach(function (p) {
+        if (!(s === cur)) pastResolvedIdx[p.idx] = true;
+      });
+    }
+
+    for (var idx = 0; idx < N; idx++) {
+      var v = HEIGHTS[idx];
+      var h = barH(v);
+      var x = barX(idx);
+      var y = BASE_Y - h;
+
+      var fill = "transparent";
+      var stroke = "var(--line-strong)";
+      var dash = null;
+      var opacity = 1;
+
+      if (idx > step.i && !(step.isSentinel)) {
+        opacity = 0.28;
+      }
+      if (resolvedNowIdx[idx]) {
+        fill = "var(--pop-soft)";
+        stroke = "var(--pop)";
+      } else if (inStackIdx[idx]) {
+        fill = "var(--accent-soft)";
+        stroke = "var(--accent)";
+      } else if (pastResolvedIdx[idx]) {
+        fill = "transparent";
+        stroke = "var(--line-strong)";
+        opacity = 0.55;
+      }
+      if (idx === step.i && !step.isSentinel) {
+        stroke = "var(--current)";
+      }
+
+      var rect = el("rect", {
+        x: x, y: y, width: barW, height: Math.max(h, 1),
+        rx: 4,
+        fill: fill, stroke: stroke, "stroke-width": (idx === step.i && !step.isSentinel) ? 2.5 : 1.5,
+        opacity: opacity
+      });
+      svg.appendChild(rect);
+
+      var vlabel = el("text", {
+        x: x + barW / 2, y: y - 8, "text-anchor": "middle",
+        class: "mono", fill: "var(--ink)", "font-size": "13", opacity: opacity
+      });
+      vlabel.textContent = v;
+      svg.appendChild(vlabel);
+
+      var ilabel = el("text", {
+        x: x + barW / 2, y: BASE_Y + 18, "text-anchor": "middle",
+        class: "mono", fill: "var(--ink-faint)", "font-size": "11", opacity: opacity
+      });
+      ilabel.textContent = "i=" + idx;
+      svg.appendChild(ilabel);
+    }
+
+    // current pointer marker
+    if (!step.isSentinel) {
+      var px = barX(step.i) + barW / 2;
+      var tri = el("path", {
+        d: "M " + px + " 8 L " + (px - 6) + " -2 L " + (px + 6) + " -2 Z",
+        fill: "var(--current)"
+      });
+      svg.appendChild(tri);
+    } else {
+      var lastX = startX + totalW + 22;
+      var slabel = el("text", {
+        x: lastX, y: BASE_Y - 4, "text-anchor": "middle",
+        class: "mono", fill: "var(--current)", "font-size": "12"
+      });
+      slabel.textContent = "0";
+      svg.appendChild(slabel);
+      var scap = el("text", {
+        x: lastX, y: BASE_Y + 18, "text-anchor": "middle",
+        class: "mono", fill: "var(--current)", "font-size": "11"
+      });
+      scap.textContent = "哨兵";
+      svg.appendChild(scap);
+    }
+
+    // overlay resolved rectangles for this step
+    step.pops.forEach(function (p) {
+      var x1 = p.left === -1 ? startX - 8 : barX(p.left) + barW / 2;
+      var x2 = p.right === N ? startX + totalW + 8 : barX(p.right) + barW / 2;
+      var h = barH(p.height);
+      var y = BASE_Y - h;
+      svg.appendChild(el("rect", {
+        x: x1, y: y, width: (x2 - x1), height: h,
+        fill: "var(--pop)", opacity: 0.16,
+        stroke: "var(--pop)", "stroke-width": 1, "stroke-dasharray": "4 3"
+      }));
+    });
+  }
+
+  function renderMiniHist(svg, p) {
+    var w = 200, h = 46, base = 40, pad = 4;
+    var u = (base - pad) / MAXH;
+    var bw = w / (N + 1), g = 2;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    svg.appendChild(el("line", { x1: 0, x2: w, y1: base, y2: base, stroke: "var(--line-strong)", "stroke-width": 1 }));
+    for (var idx = 0; idx < N; idx++) {
+      var v = HEIGHTS[idx];
+      var bh = v * u;
+      var x = idx * (bw) + 6;
+      var y = base - bh;
+      var within = idx > p.left && idx < p.right;
+      svg.appendChild(el("rect", {
+        x: x, y: y, width: bw - g, height: Math.max(bh, 1), rx: 2,
+        fill: within ? "var(--pop-soft)" : "transparent",
+        stroke: within ? "var(--pop)" : "var(--line-strong)",
+        "stroke-width": 1
+      }));
+    }
+    // shaded resolved rect
+    var x1 = (p.left + 1) * bw + 6;
+    var x2 = p.right * bw + 6;
+    var rh = p.height * u;
+    svg.appendChild(el("rect", {
+      x: x1, y: base - rh, width: (x2 - x1) - g, height: rh,
+      fill: "var(--pop)", opacity: 0.22, stroke: "var(--pop)", "stroke-width": 1
+    }));
+  }
+
+  function renderStack(well, step) {
+    while (well.firstChild) well.removeChild(well.firstChild);
+    step.stackAfter.forEach(function (idx) {
+      var b = document.createElement("div");
+      b.className = "stackBlock";
+      var i = document.createElement("span");
+      i.className = "i mono";
+      i.textContent = "i" + idx;
+      var hh = document.createElement("span");
+      hh.className = "h mono";
+      hh.textContent = HEIGHTS[idx];
+      b.appendChild(i);
+      b.appendChild(hh);
+      well.appendChild(b);
+    });
+    if (step.stackAfter.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "mono";
+      empty.style.cssText = "color:var(--ink-faint);font-size:12px;text-align:center;padding-top:8px;";
+      empty.textContent = "(空)";
+      well.appendChild(empty);
+    }
+  }
+
+  function narrationText(step) {
+    if (step.i === 0) {
+      return "從 <span class=\"mono\">i=0</span>(高度 " + step.h + ")開始,堆疊是空的,直接推入。";
+    }
+    if (step.isSentinel) {
+      if (step.pops.length) {
+        return "掃完整個陣列,補上高度 0 的哨兵,把堆疊裡剩下 " + step.pops.length + " 根柱子全部強制結算。";
+      }
+      return "掃完整個陣列,堆疊已經是空的,不需要再結算。";
+    }
+    if (step.pops.length === 0) {
+      return "<span class=\"mono\">i=" + step.i + "</span>,高度 " + step.h + " ≥ 堆疊頂端,不用彈出,直接推入。";
+    }
+    var names = step.pops.map(function (p) { return "柱子 " + p.idx + "(高 " + p.height + ")"; }).join("、");
+    return "<span class=\"mono\">i=" + step.i + "</span>,高度 " + step.h + " 比堆疊頂端矮 → 彈出並結算 " + names + "。";
+  }
+
+  var histSvg = document.getElementById("histSvg");
+  var stackWell = document.getElementById("stackWell");
+  var narration = document.getElementById("narration");
+  var stepLabel = document.getElementById("stepLabel");
+  var maxAreaNum = document.getElementById("maxAreaNum");
+  var resolvedSection = document.getElementById("resolvedSection");
+  var resolvedGrid = document.getElementById("resolvedGrid");
+  var dotsWrap = document.getElementById("dots");
+  var prevBtn = document.getElementById("prevBtn");
+  var nextBtn = document.getElementById("nextBtn");
+
+  STEPS.forEach(function (_, idx) {
+    var d = document.createElement("button");
+    d.className = "dot";
+    d.setAttribute("aria-label", "跳到第 " + (idx + 1) + " 步");
+    d.addEventListener("click", function () { goTo(idx); });
+    dotsWrap.appendChild(d);
+  });
+
+  function render() {
+    var step = STEPS[cur];
+    stepLabel.textContent = "STEP " + (cur + 1) + " / " + STEPS.length;
+    maxAreaNum.textContent = step.runningMax;
+    narration.innerHTML = narrationText(step);
+    renderHist(histSvg, step);
+    renderStack(stackWell, step);
+
+    if (step.pops.length) {
+      resolvedSection.hidden = false;
+      while (resolvedGrid.firstChild) resolvedGrid.removeChild(resolvedGrid.firstChild);
+      step.pops.forEach(function (p) {
+        var card = document.createElement("div");
+        card.className = "resolvedCard";
+        var svg = document.createElementNS(svgNS, "svg");
+        card.appendChild(svg);
+        var eq = document.createElement("div");
+        eq.className = "eq";
+        eq.innerHTML = "寬 <span class=\"mono\">" + p.width + "</span> × 高 <span class=\"mono\">" + p.height +
+          "</span> = <span class=\"mono\">" + p.area + "</span>";
+        card.appendChild(eq);
+        resolvedGrid.appendChild(card);
+        renderMiniHist(svg, p);
+      });
+    } else {
+      resolvedSection.hidden = true;
+    }
+
+    Array.prototype.forEach.call(dotsWrap.children, function (d, idx) {
+      d.setAttribute("aria-current", idx === cur ? "true" : "false");
+    });
+    prevBtn.disabled = cur === 0;
+    nextBtn.disabled = cur === STEPS.length - 1;
+  }
+
+  function goTo(idx) {
+    cur = Math.max(0, Math.min(STEPS.length - 1, idx));
+    render();
+  }
+
+  prevBtn.addEventListener("click", function () { goTo(cur - 1); });
+  nextBtn.addEventListener("click", function () { goTo(cur + 1); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight") goTo(cur + 1);
+    if (e.key === "ArrowLeft") goTo(cur - 1);
+  });
+
+  render();
+})();
+</script>
